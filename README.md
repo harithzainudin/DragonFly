@@ -3,11 +3,11 @@ CPS DragonFly Project is an initiative between Prestige Atlantic Asia Sdn Bhd an
 
 This project is under development and it is being supervised by two awesome lecturer from Computer Science and Information Technoloogy, UPM.
 
-Supervisor:
+Supervisor:  
 Ts. Dr. Mohd Hafeez Osman  
 Dr. Khaironi Yatim Sharif
 
-Software Engineering Students:
-Muhammad Harith Zainudin
-Anis Nur Hajar
-Loo Yiyang
+Software Engineering Students:  
+Muhammad Harith Zainudin  
+Anis Nur Hajar  
+Loo Yiyang  
