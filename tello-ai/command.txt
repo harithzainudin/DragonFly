@@ -1,0 +1,10 @@
+command
+streamon
+delay 5
+speed 10
+takeoff
+up 30
+left 700
+up 30
+right 700
+land 
