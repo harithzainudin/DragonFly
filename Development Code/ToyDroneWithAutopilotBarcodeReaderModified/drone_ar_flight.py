@@ -118,14 +118,16 @@ class Drone_AR_Flight:
             self.frame_no = frame_no
             return
             
-    #lukis kotak KOT
+    #lukis kotak
     def _draw(self, ar_cmd, ar_val):
         if self.code_latest_view > 0:
             self.code_latest_view -=1
-            cv2.rectangle(self.frame, self.code_latest_rect, (0,196,0), 1)
+            (x, y, w, h) = self.code_latest_rect
+            cv2.rectangle(self.frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
             puttxt4 = self.code_latest
-            cv2.putText(self.frame, puttxt4, (self.code_latest_rect[0],self.code_latest_rect[1]+self.code_latest_rect[3]/2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 3)
-
+            cv2.putText(self.frame, puttxt4, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            # cv2.rectangle(self.frame, self.code_latest_rect, (0,196,0), 1)
+            # cv2.putText(self.frame, puttxt4, (self.code_latest_rect[0],self.code_latest_rect[1]+self.code_latest_rect[3]/2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 3)
     
         for i in range(4):
             if self.marker_id[i] == True:
@@ -287,8 +289,11 @@ class Drone_AR_Flight:
     def _try_read_barcode(self):
         decoded = decode(self.gray_frame)
         if len(decoded) > 0:
-            rcode = str(decoded[0].type) + ':' + str(decoded[0].data)
-            rrect = decoded[0].rect
+            # rcode = str(decoded[0].type) + ':' + str(decoded[0].data)
+            barcodeData = decoded.data.decode("utf-8")
+            barcodeType = decoded.type
+            rcode = "{} ({})".format(barcodeData, barcodeType)
+            rrect = decoded.rect
             self.code_latest = rcode
             self.code_latest_rect = rrect
             self.beep.on()
