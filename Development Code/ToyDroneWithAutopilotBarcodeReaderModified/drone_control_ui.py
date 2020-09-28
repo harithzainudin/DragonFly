@@ -26,7 +26,7 @@ class DroneUI:
 
         self.auto_pilot = False
         self.takeoff = False
-        self.distance = 20
+        self.distance = 40
         self.degree = 10
         self.FRAME_W = 960
         self.FRAME_H = 720
@@ -44,66 +44,75 @@ class DroneUI:
         self.root = tki.Tk()
         self.image = Image.fromarray(self.frame)
         self.image = ImageTk.PhotoImage(self.image)
+
         self.panel = tki.Label(image=self.image)
         self.panel.image = self.image
-        self.panel.pack(side="left", padx=10, pady=10)
+        self.panel.pack(side="right", padx=10, pady=10)
 
         self.text1 = tki.Label(self.root, text=
                           'W - Up\t\tArrow U - Forward\n'
                           'S - Down\t\tArrow D - Backward\n'
                           'A - Rotate Left\tArrow L - Left\n'
                           'D - Rotate Right\tArrow R - Right\n',
-                          justify="left")
+                          justify="left", foreground='#000000', background='#f7f9f9', width=50, relief="groove", borderwidth=8)
         self.text1.pack(side="top")
 
     #ui battery level
         self.battery_str = tki.StringVar()
         self.battery_str.set('Battery : ')
-        self.battery_indicate = tki.Label(textvariable=self.battery_str, width=15, anchor=tki.W, justify='left',
-                                          foreground='#ffffff', background='#000000', font=("",14))
-        self.battery_indicate.pack(fill="both", anchor=tki.W)
+        self.battery_indicate = tki.Label(textvariable=self.battery_str, width=5, anchor=tki.W, justify='left',
+                                          background='#d5d8dc', foreground='#000000', font=("",14), relief="flat", borderwidth=2)
+        self.battery_indicate.pack(fill="both", anchor=tki.W) 
+
+        self.panelleft = tki.Label(battery_indicate=self.battery_indicate)
+        self.panelleft.battery_indicate = self.battery_indicate
+        self.panelleft.pack(side="left", padx=10, pady=10)
 
     #ui altitude percent
         self.height_str = tki.StringVar()
         self.height_str.set('Altitude : ')
-        self.height_indicate = tki.Label(textvariable=self.height_str, width=15, anchor=tki.W, justify='left',
-                                         foreground='#ffffff', background='#0000a0', font=("",14))
+        self.height_indicate = tki.Label(textvariable=self.height_str, width=5, anchor=tki.W, justify='left',
+                                         background='#d5d8dc', foreground='#000000', font=("",14), relief="flat", borderwidth=2)
         self.height_indicate.pack(fill="both", anchor=tki.W)
         
     #ui list qr
         self.barcode_str = tki.StringVar()
-        self.barcode_str.set('')
-        self.barcode_indicate = tki.Label(textvariable=self.barcode_str, width=15, height=10,  anchor=tki.W, justify='left',
-                                          foreground='#000000', background='#ffffff', font=("",12))
-        self.barcode_indicate.pack(fill="both", anchor=tki.W)
+        self.barcode_str.set('QR List')
+        # self.barcode_indicate = tki.Label(textvariable=self.barcode_str, width=5, height=5,  anchor=tki.W, justify='left',
+        #                                   foreground='#000000', background='#ffffff', font=("",12))
+        # self.barcode_indicate.pack(fill="both", anchor=tki.W)
         self.barcode_latest_str = ''
+
+        #buat dalam text. kalau dalam label nanti dia tak jadi list, dia akan keep on replace
+        self.qr_txt = tki.Text(self.root, height=10, width=4)
+        self.qr_txt.pack(fill="both", expand="yes", padx=10, pady=5)
 
     #ui button emergency land
         self.btn_emergencyland = tki.Button(
-            self.root, text="Emergency Land", relief="raised",bg="black", fg="white", command=self.droneLanding)
+            self.root, text="Emergency Land", relief="raised",bg="black", fg="white", command=self.emergencyLanding)
         self.btn_emergencyland.pack(side="bottom", fill="both",
-                              expand="yes", padx=10, pady=5)
+                              expand="yes", padx=5, pady=5)
         
     #ui button land
         self.btn_landing = tki.Button(
             self.root, text="Land", relief="raised",bg="black", fg="white", command=self.droneLanding)
         self.btn_landing.pack(side="bottom", fill="both",
-                              expand="yes", padx=10, pady=5)
+                              expand="yes", padx=5, pady=5)
 
     #ui button takeoff
         self.btn_takeoff = tki.Button(
             self.root, text="Takeoff", relief="raised", bg="black", fg="white", command=self.droneTakeOff)
         self.btn_takeoff.pack(side="bottom", fill="both",
-                              expand="yes", padx=10, pady=5)
+                              expand="yes", padx=5, pady=5)
 
     #ui button command
         self.btn_command = tki.Button(
             self.root, text="Command", relief="raised", bg="black", fg="white", command=self._autoCommand)
         self.btn_command.pack(side="bottom", fill="both",
-                              expand="yes", padx=10, pady=5)
+                              expand="yes", padx=5, pady=5)
 
         #ui w s a d up down left right ...
-        self.tmp_f = tki.Frame(self.root, width=100, height=2)
+        self.tmp_f = tki.Frame(self.root, width=5, height=2)
         self.tmp_f.bind('<KeyPress-w>', self.on_keypress_w)
         self.tmp_f.bind('<KeyPress-s>', self.on_keypress_s)
         self.tmp_f.bind('<KeyPress-a>', self.on_keypress_a)
@@ -116,8 +125,8 @@ class DroneUI:
         self.tmp_f.focus_set()
 
     #
-        self.hist_txt = tki.Text(self.root, height=10, width=40)
-        self.hist_txt.pack(side='bottom', fill='both', expand='yes', padx=10, pady=5)
+        self.hist_txt = tki.Text(self.root, height=5, width=5)
+        self.hist_txt.pack(side='bottom', fill='both', expand='yes', padx=10, pady=10)
 
         # nama tab atas 
         self.root.wm_title("Drone UI")
@@ -138,7 +147,7 @@ class DroneUI:
         self.sending_command_thread.daemon = True
         self.sending_command_thread.start()
 
-        self._add_log('starting application...')
+        self._add_log('Command display  here...')
 
     def _video_loop(self):
         time.sleep(0.5)
@@ -177,7 +186,7 @@ class DroneUI:
             self.drone_ar.renew_frame(self.frame, self.frame_no, self.now_height, self.ar_cmd, self.ar_val)
             self.frame_no += 1
             self.image = Image.fromarray(self.frame)
-            self.drone_ar.draw_txt(self.image, self.ar_cmd, self.ar_val)
+            #self.drone_ar.draw_txt(self.image, self.ar_cmd, self.ar_val)
             self.frame_lock.release()
 
             self.image = ImageTk.PhotoImage(self.image)
@@ -211,12 +220,25 @@ class DroneUI:
                 elif self.ar_cmd == 'stay':
                     print('>> stay')
                
-    # ui yang kuar barcode 
+# #function time- malaysia
+#     def _add_log(self, arg_log):
+#         now = datetime.datetime.now(pytz.timezone(TIMEZONE))
+#         nowtimestr = str(now.strftime('%X'))
+#         logstr = nowtimestr + ' : [' + arg_log + ']\n'
+#         self.hist_txt.insert(tki.END, logstr)
+#         self.hist_txt.see(tki.END)
+#         return
+
+    #yang kuar barcode 
             tmpstr = self.drone_ar.get_latest_barcode()
             if self.barcode_latest_str != tmpstr:
                 self.barcode_latest_str = tmpstr
-                self.barcode_str.set(mpstr)
-                self._add_log(tmpstr)
+                self.barcode_str.set(tmpstr)
+                qr = tmpstr + '\n'  #nak suh dia tambah next qr link
+                self.qr_txt.insert(tki.END,qr)  #dia masukkan qr link 
+                self.qr_txt.see(tki.END) #for the command auto scroll to latest
+                
+                #self._add_log(tmpstr)
 
             self.get_battery()
             self.get_height()
@@ -224,7 +246,10 @@ class DroneUI:
             time.sleep(0.3)
         
         return
-
+        
+        self.hist_txt = tki.Text(self.root, height=5, width=5)
+        self.hist_txt.pack(side='bottom', fill='both', expand='yes', padx=10, pady=10)
+#function droneTakeoff
     def droneTakeOff(self):
         self._add_log('takeoff')
         takeoff_response = None
@@ -235,12 +260,26 @@ class DroneUI:
         self.takeoff = True
         return
 
+# function droneLanding
     def droneLanding(self):
         self.takeoff = False
         self._add_log('landing ...')
         self.drone.land()
         time.sleep(0.2)
         return
+
+#   function emergency land
+    def emergencyLanding(self):
+        self.takeoff = False
+        self._add_log('emergency landing ...')
+        self.drone.land()
+        self.drone.land()
+        self.drone.land()
+        self.drone.land()
+        self.drone.land()
+        time.sleep(0.1)
+        return
+        
 
     def _autoPilot(self):
         if self.auto_pilot:
@@ -305,58 +344,58 @@ class DroneUI:
         return
 
     def on_keypress_w(self, event):
-        self.distance = 20
+        self.distance = 40
         print('Up %d cm' % self.distance)
-        self._add_log('moving up 20 ...')
+        self._add_log('Up %d cm' % self.distance)
         self.droneUp(self.distance)
         return
 
     def on_keypress_s(self, event):
         self.distance = 20
         print('Down %d cm' % self.distance)
-        self._add_log('moving down 20 ...')
+        self._add_log('Down %d cm' % self.distance)
         self.droneDown(self.distance)
         return
 
     def on_keypress_a(self, event):
         self.degree = 10
         print('Rotate left %d degree' % self.degree)
-        self._add_log('rotate left 10 degree')
+        self._add_log('Rotate left %d degree' % self.degree)
         self.droneCCW(self.degree)
         return
 
     def on_keypress_d(self, event):
         self.degree = 10
         print('Rotate right %d m' % self.degree)
-        self._add_log('rotate right 10 degree')
+        self._add_log('Rotate right %d m' % self.degree)
         self.droneCW(self.degree)
         return
 
     def on_keypress_up(self, event):
         self.distance = 20
         print('forward %d cm' % self.distance)
-        self._add_log('forward 20 ...')
+        self._add_log('forward %d cm' % self.distance)
         self.droneMoveForward(self.distance)
         return
 
     def on_keypress_down(self, event):
         self.distance = 20
         print('backward %d cm' % self.distance)
-        self._add_log('backward 20 ...')
+        self._add_log('backward %d cm' % self.distance)
         self.droneMoveBackward(self.distance)
         return
 
     def on_keypress_left(self, event):
         self.distance = 20
         print('left %d cm' % self.distance)
-        self._add_log('left 20 ...')
+        self._add_log('left %d cm' % self.distance)
         self.droneMoveLeft(self.distance)
         return
 
     def on_keypress_right(self, event):
         self.distance = 20
         print('right %d cm' % self.distance)
-        self._add_log('right 20 ...')
+        self._add_log('right %d cm' % self.distance)
         self.droneMoveRight(self.distance)
         return
 
@@ -420,6 +459,7 @@ class DroneUI:
         nowtimestr = str(now.strftime('%X'))
         logstr = nowtimestr + ' : [' + arg_log + ']\n'
         self.hist_txt.insert(tki.END, logstr)
+        self.hist_txt.see(tki.END) #for the command auto scroll to latest
         return
 
 #eof
