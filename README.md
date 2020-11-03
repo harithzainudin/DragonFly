@@ -1,8 +1,6 @@
 # CPS X-SERIES DRAGONFLY
 
-<img src="https://github.com/harithzainudin/DragonFly/blob/master/CPS%20Dragoinfly%20Logo.jpg" width="500" />
-
-![](https://github.com/harithzainudin/DragonFly/blob/master/CPS%20Dragoinfly%20Logo.jpg | width=100)
+<img src="https://github.com/harithzainudin/DragonFly/blob/master/CPS%20Dragoinfly%20Logo.jpg" width="300" />
 
 CPS DragonFly Project is an initiative between Prestige Atlantic Asia Sdn Bhd and software engineering students of Computer Science and Information Technology Faculty from University Putra Malaysia to build an integrated warehouse inventory tracking and managing system using technologies such as Internet of Things (IOT), drone, Quick Response Code(QR Code), artificial intelligence and machine learning.
 
