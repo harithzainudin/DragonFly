@@ -1,6 +1,6 @@
 # CPS X-SERIES DRAGONFLY
 
-<img src="https://github.com/harithzainudin/DragonFly/blob/master/CPS%20Dragoinfly%20Logo.jpg" width="100" height="100"/>
+<img src="https://github.com/harithzainudin/DragonFly/blob/master/CPS%20Dragoinfly%20Logo.jpg" width="500" />
 
 ![](https://github.com/harithzainudin/DragonFly/blob/master/CPS%20Dragoinfly%20Logo.jpg | width=100)
 
