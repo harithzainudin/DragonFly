@@ -15,38 +15,49 @@ import threading
 import traceback
 from anafiRequestPost import Anafi_Request_Post
 from anafiScanning import Anafi_Scanning
-from pyzbar import pyzbar
-import time
 
 import olympe
+import olympe_deps as od
 from olympe.messages.ardrone3.Piloting import TakeOff, Landing
 from olympe.messages.ardrone3.Piloting import moveBy
 from olympe.messages.ardrone3.PilotingState import FlyingStateChanged
 from olympe.messages.ardrone3.PilotingSettings import MaxTilt
 from olympe.messages.ardrone3.GPSSettingsState import GPSFixStateChanged
-
+from olympe.messages.skyctrl.CoPiloting import setPilotingSource
 
 olympe.log.update_config({"loggers": {"olympe": {"level": "WARNING"}}})
 
 DRONE_IP = "192.168.42.1"
+CONTROLLER_IP = "192.168.53.1"
 
 
 class AnafiConnection(threading.Thread):
 
     def __init__(self):
         # Create the olympe.Drone object from its IP address
-        self.drone = olympe.Drone(DRONE_IP)
+        self.drone = olympe.Drone(
+            DRONE_IP, drone_type=od.ARSDK_DEVICE_TYPE_ANAFI4K)
+
+        # Uncomment this to fly the drone with the controller. Controller must be connected to the laptop with cable
+        # self.drone(setPilotingSource(source="Controller")).wait()
+
         self.tempd = tempfile.mkdtemp(prefix="olympe_streaming_test_")
-        print("Olympe streaming output dir: {}".format(self.tempd))
+
         self.h264_frame_stats = []
-        self.h264_stats_file = open(os.path.join(self.tempd, 'h264_stats.csv'), 'w+')
-        self.h264_stats_writer = csv.DictWriter(self.h264_stats_file, ['fps', 'bitrate'])
+        self.h264_stats_file = open(os.path.join(
+            self.tempd, 'h264_stats.csv'), 'w+')
+        self.h264_stats_writer = csv.DictWriter(
+            self.h264_stats_file, ['fps', 'bitrate'])
         self.h264_stats_writer.writeheader()
         self.frame_queue = queue.Queue()
         self.flush_queue_lock = threading.Lock()
 
         self.request_post = Anafi_Request_Post()
         self.scanning_decode = Anafi_Scanning()
+        self.listOfLocation = self.request_post.readLocation()
+        print(self.listOfLocation)
+        self.currentLocation = None
+        self.barcodeDataList = []
 
         super().__init__()
         super().start()
@@ -74,7 +85,7 @@ class AnafiConnection(threading.Thread):
 
     # This function will be called by Olympe for each decoded YUV frame.
     def yuv_frame_cb(self, yuv_frame):
-        
+
         yuv_frame.ref()
         self.frame_queue.put_nowait(yuv_frame)
 
@@ -133,17 +144,28 @@ class AnafiConnection(threading.Thread):
         # i.e (3 * height / 2, width) because it's a YUV I420 or NV12 frame
 
         # Use OpenCV to convert the yuv frame to RGB
-        self.cv2frame = cv2.cvtColor(yuv_frame.as_ndarray(), cv2_cvt_color_flag)
+        self.cv2frame = cv2.cvtColor(
+            yuv_frame.as_ndarray(), cv2_cvt_color_flag)
 
-        # call scanning method from anafiScanning file
-        barcode_data = self.scanning_decode.scanning(self.cv2frame)
-        
-        # # pass the data to the server
-        # self.request_post.requestPost(barcode_data)
-        
+        # scan the barcode, draw box and data in the frame
+        self.barcodeData = self.scanning_decode.startScanning(self.cv2frame)
+
+        if not self.barcodeData:
+            print("noneeee")
+        elif (self.barcodeData in self.listOfLocation):
+            self.currentLocation = self.barcodeData
+            print("this is current location =", self.currentLocation)
+        else:
+            if (self.barcodeData not in self.barcodeDataList):
+                print("data tengh scan, xde dalam list")
+                self.barcodeDataList.append(self.barcodeData)
+                self.request_post.sendData(self.barcodeData, self.currentLocation)
+                print(self.barcodeDataList)
+            
+
         # Use OpenCV to show this frame
         cv2.imshow(window_name, self.cv2frame)
-        cv2.waitKey(1) # please OpenCV for 1 ms...
+        cv2.waitKey(1)  # please OpenCV for 1 ms...
 
     def run(self):
         window_name = "Olympe Streaming"
@@ -151,6 +173,7 @@ class AnafiConnection(threading.Thread):
         main_thread = next(
             filter(lambda t: t.name == "MainThread", threading.enumerate())
         )
+
         while main_thread.is_alive():
             with self.flush_queue_lock:
                 try:
@@ -159,6 +182,7 @@ class AnafiConnection(threading.Thread):
                     continue
                 try:
                     self.show_yuv_frame(window_name, yuv_frame)
+
                 except Exception:
                     # We have to continue popping frame from the queue even if
                     # we fail to show one frame
@@ -167,106 +191,39 @@ class AnafiConnection(threading.Thread):
                     # Don't forget to unref the yuv frame. We don't want to
                     # starve the video buffer pool
                     yuv_frame.unref()
+            
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 anafi_connection.stop()
+       
         cv2.destroyWindow(window_name)
 
-    def autonomous(self):
-        file_name = '/home/dragonfly/DragonFlyReferences/ToyDroneWithAutopilotBarcodeReader1.0/cm.txt'
+    def fly(self):
+        # Takeoff, fly, land, ...
+        print("Takeoff if necessary...")
+        self.drone(
+            FlyingStateChanged(state="hovering", _policy="check")
+            | FlyingStateChanged(state="flying", _policy="check")
+            | (
+                GPSFixStateChanged(fixed=1, _timeout=10, _policy="check_wait")
+                >> (
+                    TakeOff(_no_expect=True)
+                    & FlyingStateChanged(
+                        state="hovering", _timeout=10, _policy="check_wait")
+                )
+            )
+        ).wait()
+        self.drone(MaxTilt(40)).wait().success()
+        for i in range(3):
+            print("Moving by ({}/3)...".format(i + 1))
+            self.drone(moveBy(10, 0, 0, math.pi, _timeout=20)).wait().success()
 
-        f = open(file_name, "r")
-        commands = f.readlines()
+        print("Landing...")
+        self.drone(
+            Landing()
+            >> FlyingStateChanged(state="landed", _timeout=5)
+        ).wait()
+        print("Landed\n")
 
-        for command in commands:
-            if command != '' and command != '\n':
-                command = command.rstrip()
-
-                if command.find('delay') != -1:
-                    sec = float(command.partition('delay')[2])
-                    print ('delay %s' % sec)
-                    time.sleep(sec)
-                    pass
-            
-                else:
-                    self.send_command(command)
-
-    def send_command(self, command):
-        newCommand = command.split()
-
-        if(newCommand[0] == 'Forward') or (newCommand[0] == 'Backward'):
-            self.move_ForwardBackward(newCommand[1])
-        
-        if(newCommand[0] == 'Left') or (newCommand[0] == 'Right'):
-            self.move_RightLeft(newCommand[1])
-        
-        if(newCommand[0] == 'Up') or (newCommand[0] == 'Down'):
-            self.move_UpDown(newCommand[1])
-        
-        if(newCommand[0] == 'Rotate'):
-            self.rotate(newCommand[1])
-        
-        if(newCommand[0] == 'Takeoff'):
-            self.takeoff()
-        
-        if(newCommand[0] == 'Land'):
-            self.land()
-        
-        return
-
-    def takeoff(self):
-        assert self.drone(
-            TakeOff()
-            >> FlyingStateChanged(state="hovering", _timeout=5)
-        ).wait().success()
-        print("---------------------------------------------------SUCCESSFUL TAKEOFF---------------------------------------------------------------------")
-
-        return
-    
-    def land(self):
-        assert self.drone(Landing()).wait().success()
-        print("---------------------------------------------------SUCCESSFUL LAND---------------------------------------------------------------------")
-
-
-    def move_ForwardBackward(self, range):
-        distance = float(range)
-        assert self.drone(
-        moveBy(distance, 0, 0, 0)
-        >> FlyingStateChanged(state="hovering", _timeout=5)
-        ).wait().success()
-        print("---------------------------------------------SUCCESSFUL FORWARD/BACKWARD---------------------------------------------------------------------")
-
-        return
-    
-    def move_RightLeft(self, range):
-        distance = float(range)
-        assert self.drone(
-        moveBy(0, distance, 0, 0)
-        >> FlyingStateChanged(state="hovering", _timeout=5)
-        ).wait().success()
-        print("---------------------------------------------------SUCCESSFUL RIGHT/LEFT---------------------------------------------------------------------")
-
-        return
-    
-    def move_UpDown(self, range):
-        distance = float(range)
-        assert self.drone(
-        moveBy(0, 0, distance, 0)
-        >> FlyingStateChanged(state="hovering", _timeout=5)
-        ).wait().success()
-        print("---------------------------------------------------SUCCESSFUL UP/DOWN---------------------------------------------------------------------")
-
-        return
-
-    def rotate(self, range):
-        distance = float(range)
-        assert self.drone(
-        moveBy(0, 0, 0, distance)
-        >> FlyingStateChanged(state="hovering", _timeout=5)
-        ).wait().success()
-        print("---------------------------------------------------SUCCESSFUL ROTATE/YAW---------------------------------------------------------------------")
-
-        return
-       
 
 if __name__ == "__main__":
     anafi_connection = AnafiConnection()

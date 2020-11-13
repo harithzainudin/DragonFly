@@ -2,11 +2,19 @@ import requests
 
 class Anafi_Request_Post():
 
-    def requestPost(self, idData, location):
-        API_ENDPOINT = "http://pastebin.com/api/api_post.php"
-        API_KEY = "http://cpsdragonfly.herokuapp.com/"
-        source_code = {"id": idData, "location": location }
+    def readLocation(self):
+        locationList = []
+        locationFile = 'listOfLocation.txt'
 
-        data = {'api_dev_key':API_KEY, 'api_option':'paste', 'api_paste_code':source_code, 'api_paste_format':'python'} 
+        file = open(locationFile, "r")
+        locations = file.readlines()
 
-        resp = requests.post(url = API_ENDPOINT, data = data)
+        for location in locations:
+            if location != '' and location != '\n':
+                location = location.rstrip()
+                locationList.append(location)
+        return locationList
+
+
+    def sendData(self, idData, locationData):
+        response = requests.post('https://cpsdragonfly.herokuapp.com/api/item', data={'id': idData, 'location': locationData})
