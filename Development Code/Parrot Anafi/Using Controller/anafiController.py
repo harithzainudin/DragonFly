@@ -56,9 +56,13 @@ class AnafiConnection(threading.Thread):
         self.listOfLocation = self.request_post.readLocation()
         print(self.listOfLocation)
         self.currentLocation = None
+        self.currentLocationStatus = False
         self.barcodeDataList = []
 
+        # get location from server
+
         super().__init__()
+        print("Initialization succesfull, Drone is ready to FLY")
         super().start()
 
     def start(self):
@@ -150,16 +154,14 @@ class AnafiConnection(threading.Thread):
         self.barcodeData = self.scanning_decode.startScanning(self.cv2frame)
 
         if not self.barcodeData:
-            print("noneeee")
+            pass
         elif (self.barcodeData in self.listOfLocation):
             self.currentLocation = self.barcodeData
-            print("this is current location =", self.currentLocation)
+            self.currentLocationStatus = True
         else:
-            if (self.barcodeData not in self.barcodeDataList):
-                print("data tengh scan, xde dalam list")
+            if (self.barcodeData not in self.barcodeDataList) and (self.currentLocationStatus == True):
                 self.barcodeDataList.append(self.barcodeData)
                 self.request_post.sendData(self.barcodeData, self.currentLocation)
-                print(self.barcodeDataList)
             
 
         # Use OpenCV to show this frame

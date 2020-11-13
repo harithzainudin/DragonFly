@@ -38,9 +38,6 @@ class AnafiConnection(threading.Thread):
         self.drone = olympe.Drone(
             DRONE_IP, drone_type=od.ARSDK_DEVICE_TYPE_ANAFI4K)
 
-        # Uncomment this to fly the drone with the controller. Controller must be connected to the laptop with cable
-        # self.drone(setPilotingSource(source="Controller")).wait()
-
         self.tempd = tempfile.mkdtemp(prefix="olympe_streaming_test_")
 
         self.h264_frame_stats = []
@@ -57,9 +54,14 @@ class AnafiConnection(threading.Thread):
         self.listOfLocation = self.request_post.readLocation()
         print(self.listOfLocation)
         self.currentLocation = None
+        self.currentLocationStatus = False
         self.barcodeDataList = []
 
+        # get location from server
+        
+
         super().__init__()
+        print("Initialization succesfull, Drone is ready to FLY")
         super().start()
 
     def start(self):
@@ -150,18 +152,17 @@ class AnafiConnection(threading.Thread):
         # scan the barcode, draw box and data in the frame
         self.barcodeData = self.scanning_decode.startScanning(self.cv2frame)
 
+        # if there is no data in the barocodeData. contain None
         if not self.barcodeData:
-            print("noneeee")
+            pass
         elif (self.barcodeData in self.listOfLocation):
             self.currentLocation = self.barcodeData
-            print("this is current location =", self.currentLocation)
+            self.currentLocationStatus = True
         else:
-            if (self.barcodeData not in self.barcodeDataList):
-                print("data tengh scan, xde dalam list")
+            if (self.barcodeData not in self.barcodeDataList) and (self.currentLocationStatus == True):
+                # print("data tengh scan, xde dalam list")
                 self.barcodeDataList.append(self.barcodeData)
-                self.request_post.sendData(self.barcodeData, self.currentLocation)
-                print(self.barcodeDataList)
-            
+                self.request_post.sendData(self.barcodeData, self.currentLocation)            
 
         # Use OpenCV to show this frame
         cv2.imshow(window_name, self.cv2frame)
@@ -173,7 +174,7 @@ class AnafiConnection(threading.Thread):
         main_thread = next(
             filter(lambda t: t.name == "MainThread", threading.enumerate())
         )
-
+        
         while main_thread.is_alive():
             with self.flush_queue_lock:
                 try:
@@ -182,11 +183,12 @@ class AnafiConnection(threading.Thread):
                     continue
                 try:
                     self.show_yuv_frame(window_name, yuv_frame)
-
+                    
                 except Exception:
                     # We have to continue popping frame from the queue even if
                     # we fail to show one frame
                     traceback.print_exc()
+                    
                 finally:
                     # Don't forget to unref the yuv frame. We don't want to
                     # starve the video buffer pool
