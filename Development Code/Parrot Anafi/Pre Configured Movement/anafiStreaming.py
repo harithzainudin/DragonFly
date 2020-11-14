@@ -199,33 +199,101 @@ class AnafiConnection(threading.Thread):
        
         cv2.destroyWindow(window_name)
 
-    def fly(self):
-        # Takeoff, fly, land, ...
-        print("Takeoff if necessary...")
-        self.drone(
-            FlyingStateChanged(state="hovering", _policy="check")
-            | FlyingStateChanged(state="flying", _policy="check")
-            | (
-                GPSFixStateChanged(fixed=1, _timeout=10, _policy="check_wait")
-                >> (
-                    TakeOff(_no_expect=True)
-                    & FlyingStateChanged(
-                        state="hovering", _timeout=10, _policy="check_wait")
-                )
-            )
-        ).wait()
-        self.drone(MaxTilt(40)).wait().success()
-        for i in range(3):
-            print("Moving by ({}/3)...".format(i + 1))
-            self.drone(moveBy(10, 0, 0, math.pi, _timeout=20)).wait().success()
+    def autonomous(self):
+        file_name = '/home/dragonfly/DragonFlyReferences/ToyDroneWithAutopilotBarcodeReader1.0/cm.txt'
 
-        print("Landing...")
-        self.drone(
-            Landing()
-            >> FlyingStateChanged(state="landed", _timeout=5)
-        ).wait()
-        print("Landed\n")
+        f = open(file_name, "r")
+        commands = f.readlines()
 
+        for command in commands:
+            if command != '' and command != '\n':
+                command = command.rstrip()
+
+                if command.find('delay') != -1:
+                    sec = float(command.partition('delay')[2])
+                    print ('delay %s' % sec)
+                    time.sleep(sec)
+                    pass
+            
+                else:
+                    self.send_command(command)
+    
+    def send_command(self, command):
+        newCommand = command.split()
+
+        if(newCommand[0] == 'Forward') or (newCommand[0] == 'Backward'):
+            self.move_ForwardBackward(newCommand[1])
+        
+        if(newCommand[0] == 'Left') or (newCommand[0] == 'Right'):
+            self.move_RightLeft(newCommand[1])
+        
+        if(newCommand[0] == 'Up') or (newCommand[0] == 'Down'):
+            self.move_UpDown(newCommand[1])
+        
+        if(newCommand[0] == 'Rotate'):
+            self.rotate(newCommand[1])
+        
+        if(newCommand[0] == 'Takeoff'):
+            self.takeoff()
+        
+        if(newCommand[0] == 'Land'):
+            self.land()
+        
+        return
+
+    def takeoff(self):
+        assert self.drone(
+            TakeOff()
+            >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------------SUCCESSFUL TAKEOFF---------------------------------------------------------------------")
+
+        return
+    
+    def land(self):
+        assert self.drone(Landing()).wait().success()
+        print("---------------------------------------------------SUCCESSFUL LAND---------------------------------------------------------------------")
+
+
+    def move_ForwardBackward(self, range):
+        distance = float(range)
+        assert self.drone(
+        moveBy(distance, 0, 0, 0)
+        >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------SUCCESSFUL FORWARD/BACKWARD---------------------------------------------------------------------")
+
+        return
+    
+    def move_RightLeft(self, range):
+        distance = float(range)
+        assert self.drone(
+        moveBy(0, distance, 0, 0)
+        >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------------SUCCESSFUL RIGHT/LEFT---------------------------------------------------------------------")
+
+        return
+    
+    def move_UpDown(self, range):
+        distance = float(range)
+        assert self.drone(
+        moveBy(0, 0, distance, 0)
+        >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------------SUCCESSFUL UP/DOWN---------------------------------------------------------------------")
+
+        return
+
+    def rotate(self, range):
+        distance = float(range)
+        assert self.drone(
+        moveBy(0, 0, 0, distance)
+        >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------------SUCCESSFUL ROTATE/YAW---------------------------------------------------------------------")
+
+        return
 
 if __name__ == "__main__":
     anafi_connection = AnafiConnection()
