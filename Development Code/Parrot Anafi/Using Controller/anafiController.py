@@ -18,12 +18,13 @@ from anafiScanning import Anafi_Scanning
 
 import olympe
 import olympe_deps as od
+from olympe.messages.skyctrl.CoPiloting import setPilotingSource
 from olympe.messages.ardrone3.Piloting import TakeOff, Landing
 from olympe.messages.ardrone3.Piloting import moveBy
 from olympe.messages.ardrone3.PilotingState import FlyingStateChanged
 from olympe.messages.ardrone3.PilotingSettings import MaxTilt
 from olympe.messages.ardrone3.GPSSettingsState import GPSFixStateChanged
-from olympe.messages.skyctrl.CoPiloting import setPilotingSource
+
 
 olympe.log.update_config({"loggers": {"olympe": {"level": "WARNING"}}})
 
@@ -35,18 +36,14 @@ class AnafiConnection(threading.Thread):
 
     def __init__(self):
         # Create the olympe.Drone object from its IP address
-        self.drone = olympe.Drone(
-            CONTROLLER_IP, drone_type=od.ARSDK_DEVICE_TYPE_ANAFI4K)
-        # Uncomment this to fly the drone with the controller. Controller must be connected to the laptop with cable
+        self.drone = olympe.Drone(CONTROLLER_IP, drone_type=od.ARSDK_DEVICE_TYPE_ANAFI4K)
         self.drone(setPilotingSource(source="Controller")).wait()
 
         self.tempd = tempfile.mkdtemp(prefix="olympe_streaming_test_")
-
+        print("Olympe streaming output dir: {}".format(self.tempd))
         self.h264_frame_stats = []
-        self.h264_stats_file = open(os.path.join(
-            self.tempd, 'h264_stats.csv'), 'w+')
-        self.h264_stats_writer = csv.DictWriter(
-            self.h264_stats_file, ['fps', 'bitrate'])
+        self.h264_stats_file = open(os.path.join(self.tempd, 'h264_stats.csv'), 'w+')
+        self.h264_stats_writer = csv.DictWriter(self.h264_stats_file, ['fps', 'bitrate'])
         self.h264_stats_writer.writeheader()
         self.frame_queue = queue.Queue()
         self.flush_queue_lock = threading.Lock()
@@ -59,15 +56,13 @@ class AnafiConnection(threading.Thread):
         self.currentLocationStatus = False
         self.barcodeDataList = []
 
-        # get location from server
-
         super().__init__()
-        print("Initialization succesfull, Drone is ready to FLY")
         super().start()
 
     def start(self):
         # Connect the the drone
         self.drone.connect()
+        
 
         # Setup your callback functions to do some live video processing
         self.drone.set_streaming_callbacks(
@@ -88,7 +83,7 @@ class AnafiConnection(threading.Thread):
 
     # This function will be called by Olympe for each decoded YUV frame.
     def yuv_frame_cb(self, yuv_frame):
-
+        
         yuv_frame.ref()
         self.frame_queue.put_nowait(yuv_frame)
 
@@ -147,11 +142,10 @@ class AnafiConnection(threading.Thread):
         # i.e (3 * height / 2, width) because it's a YUV I420 or NV12 frame
 
         # Use OpenCV to convert the yuv frame to RGB
-        self.cv2frame = cv2.cvtColor(
-            yuv_frame.as_ndarray(), cv2_cvt_color_flag)
+        cv2frame = cv2.cvtColor(yuv_frame.as_ndarray(), cv2_cvt_color_flag)
 
         # scan the barcode, draw box and data in the frame
-        self.barcodeData = self.scanning_decode.startScanning(self.cv2frame)
+        self.barcodeData = self.scanning_decode.startScanning(cv2frame)
 
         if not self.barcodeData:
             pass
@@ -162,10 +156,10 @@ class AnafiConnection(threading.Thread):
             if (self.barcodeData not in self.barcodeDataList) and (self.currentLocationStatus == True):
                 self.barcodeDataList.append(self.barcodeData)
                 self.request_post.sendData(self.barcodeData, self.currentLocation)
-            
+
 
         # Use OpenCV to show this frame
-        cv2.imshow(window_name, self.cv2frame)
+        cv2.imshow(window_name, cv2frame)
         cv2.waitKey(1)  # please OpenCV for 1 ms...
 
     def run(self):
@@ -174,7 +168,6 @@ class AnafiConnection(threading.Thread):
         main_thread = next(
             filter(lambda t: t.name == "MainThread", threading.enumerate())
         )
-
         while main_thread.is_alive():
             with self.flush_queue_lock:
                 try:
@@ -183,7 +176,6 @@ class AnafiConnection(threading.Thread):
                     continue
                 try:
                     self.show_yuv_frame(window_name, yuv_frame)
-
                 except Exception:
                     # We have to continue popping frame from the queue even if
                     # we fail to show one frame
@@ -192,10 +184,6 @@ class AnafiConnection(threading.Thread):
                     # Don't forget to unref the yuv frame. We don't want to
                     # starve the video buffer pool
                     yuv_frame.unref()
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                anafi_connection.stop()
-       
         cv2.destroyWindow(window_name)
 
     def fly(self):
@@ -216,7 +204,7 @@ class AnafiConnection(threading.Thread):
         self.drone(MaxTilt(40)).wait().success()
         for i in range(3):
             print("Moving by ({}/3)...".format(i + 1))
-            self.drone(moveBy(10, 0, 0, math.pi, _timeout=20)).wait().success()
+            self.drone(moveBy(0.1, 0, 0, math.pi, _timeout=20)).wait().success()
 
         print("Landing...")
         self.drone(
@@ -224,7 +212,7 @@ class AnafiConnection(threading.Thread):
             >> FlyingStateChanged(state="landed", _timeout=5)
         ).wait()
         print("Landed\n")
-
+        
 
 if __name__ == "__main__":
     anafi_connection = AnafiConnection()
