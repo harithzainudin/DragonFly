@@ -1,0 +1,16 @@
+main =  run yang ni dekat terminal 
+
+drone_control_ui = vie(interface)
+
+movement_controller = connect movement_model dengan drone_control_ui
+status_controller = connect status_model dengan drone_control_ui
+
+status_model = dalam ni ada kedua-dua part movement n status (ni file asal. nama senanya tello.py)
+
+--- plannya nak tambah file bawah ni----
+
+movement_model = nak letak part movement model je sini 
+
+
+
+
