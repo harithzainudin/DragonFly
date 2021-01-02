@@ -349,7 +349,7 @@ class DroneUI:
         return
 
     def on_keypress_w(self, event):
-        self.distance = 40
+        self.distance = 20
         print('Up %d cm' % self.distance)
         self._add_log('Up %d cm' % self.distance)
         self.droneUp(self.distance)
@@ -363,14 +363,14 @@ class DroneUI:
         return
 
     def on_keypress_a(self, event):
-        self.degree = 10
+        self.degree = 20
         print('Rotate left %d degree' % self.degree)
         self._add_log('Rotate left %d degree' % self.degree)
         self.droneCCW(self.degree)
         return
 
     def on_keypress_d(self, event):
-        self.degree = 10
+        self.degree = 20
         print('Rotate right %d m' % self.degree)
         self._add_log('Rotate right %d m' % self.degree)
         self.droneCW(self.degree)

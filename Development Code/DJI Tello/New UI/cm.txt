@@ -1,6 +1,3 @@
 takeoff
-up 30
-left 700
-up 30
-right 700
+left 20
 land 
