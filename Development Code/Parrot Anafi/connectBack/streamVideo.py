@@ -27,6 +27,7 @@ CONTROLLER_IP = "192.168.53.1"
 
 
 class streamVideo(threading.Thread):
+    
     def __init__(self):
         # Create the olympe.Drone object from its IP address
         self.drone = olympe.Drone(DRONE_IP)

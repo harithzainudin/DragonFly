@@ -56,7 +56,7 @@ class videoUI:
                 self.frame = cv2frame
 
                 image = Image.fromarray(cv2frame)
-                image = ImageTk.PhotoImage(cv2frame)
+                image = ImageTk.PhotoImage(image)
 
                 # grab the frame from the video stream and resize it to
                 # have a maximum width of 300 pixels
@@ -101,5 +101,5 @@ class videoUI:
         # the quit process to continue
         print("[INFO] closing...")
         self.stopEvent.set()
-        streamVideo.streamVideo.stop()
+        self.streamVideo.streamVideo.stop()
         self.root.quit()
