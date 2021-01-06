@@ -64,6 +64,7 @@ class AnafiConnection(threading.Thread):
         print("Initialization succesfull, Drone is ready to FLY")
         super().start()
 
+    # connect olympe with the drone and setup callback functions for the olympe SDK
     def start(self):
         # Connect the the drone
         self.drone.connect()
@@ -79,8 +80,9 @@ class AnafiConnection(threading.Thread):
         # Start video streaming
         self.drone.start_video_streaming()
 
+    # Properly stop the video stream and disconnect
     def stop(self):
-        # Properly stop the video stream and disconnect
+
         self.drone.stop_video_streaming()
         self.drone.disconnect()
         self.h264_stats_file.close()
@@ -91,15 +93,18 @@ class AnafiConnection(threading.Thread):
         yuv_frame.ref()
         self.frame_queue.put_nowait(yuv_frame)
 
+    # This function will be called by Olympe to flush the callback
     def flush_cb(self):
         with self.flush_queue_lock:
             while not self.frame_queue.empty():
                 self.frame_queue.get_nowait().unref()
         return True
 
+    # This function is necessary for Olympe SDK
     def start_cb(self):
         pass
 
+    # This function is necessary for Olympe SDK
     def end_cb(self):
         pass
 
@@ -152,7 +157,7 @@ class AnafiConnection(threading.Thread):
         # scan the barcode, draw box and data in the frame
         self.barcodeData = self.scanning_decode.startScanning(self.cv2frame)
 
-        # if there is no data in the barocodeData. contain None
+        # if there is no data in the barcodeData. contain None
         if not self.barcodeData:
             pass
         elif (self.barcodeData in self.listOfLocation):
@@ -168,6 +173,7 @@ class AnafiConnection(threading.Thread):
         cv2.imshow(window_name, self.cv2frame)
         cv2.waitKey(1)  # please OpenCV for 1 ms...
 
+    # This function is necessary for the Olympe SDK. It will be called by Olympe
     def run(self):
         window_name = "Olympe Streaming"
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
@@ -295,6 +301,7 @@ class AnafiConnection(threading.Thread):
 
         return
 
+# Main function
 if __name__ == "__main__":
     anafi_connection = AnafiConnection()
     # Start the video stream
