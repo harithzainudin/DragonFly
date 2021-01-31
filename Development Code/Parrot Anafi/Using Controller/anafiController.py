@@ -15,6 +15,7 @@ import threading
 import traceback
 from anafiRequestPost import Anafi_Request_Post
 from anafiScanning import Anafi_Scanning
+from pyzbar import pyzbar
 
 import olympe
 import olympe_deps as od
@@ -47,6 +48,19 @@ class AnafiConnection(threading.Thread):
         self.h264_stats_writer.writeheader()
         self.frame_queue = queue.Queue()
         self.flush_queue_lock = threading.Lock()
+
+        #FINDING FOCAL LENGTH OF THE CAMERA
+        # initialize the known distance from the camera to the object, which
+        self.KNOWN_DISTANCE = 25.1
+
+        # initialize the known object width, which in this case, the piece of
+        self.KNOWN_WIDTH = 2.16535
+
+        self.image = cv2.imread("/home/dragonfly/Downloads/Using Controller/images/barcode.jpg")
+        self.foundBarcode = pyzbar.decode(self.image)
+        for code in self.foundBarcode:
+            (x, y, w, h) = code.rect
+        self.focalLength = (w * self.KNOWN_DISTANCE) / self.KNOWN_WIDTH
 
         self.request_post = Anafi_Request_Post()
         self.scanning_decode = Anafi_Scanning()
@@ -145,7 +159,7 @@ class AnafiConnection(threading.Thread):
         cv2frame = cv2.cvtColor(yuv_frame.as_ndarray(), cv2_cvt_color_flag)
 
         # scan the barcode, draw box and data in the frame
-        self.barcodeData = self.scanning_decode.startScanning(cv2frame)
+        self.barcodeData = self.scanning_decode.startScanning(cv2frame, self.focalLength, self.KNOWN_WIDTH)
 
         if not self.barcodeData:
             pass
@@ -184,6 +198,8 @@ class AnafiConnection(threading.Thread):
                     # Don't forget to unref the yuv frame. We don't want to
                     # starve the video buffer pool
                     yuv_frame.unref()
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                anafi_connection.stop()
         cv2.destroyWindow(window_name)
 
     def fly(self):
