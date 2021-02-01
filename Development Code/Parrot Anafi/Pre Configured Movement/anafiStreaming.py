@@ -49,16 +49,41 @@ class AnafiConnection(threading.Thread):
         self.frame_queue = queue.Queue()
         self.flush_queue_lock = threading.Lock()
 
+        # initialize the known distance from the camera to the object (referring to picture)
+        self.KNOWN_DISTANCE = 25.1
+
+        # initialize the known object width, which in this case, the barcode(referring to QR code in picture)
+        self.KNOWN_WIDTH = 2.16535
+
+        # change path to your own path
+        self.image = cv2.imread("/home/dragonfly/Downloads/Using Controller/images/barcode.jpg")
+
+        # decode the QR code in the picture
+        self.foundBarcode = pyzbar.decode(self.image)
+
+        # loop the found barcode and get the width (in pixels) for the QR code in the picture, then calculate the focal length
+        for QRCode in self.foundBarcode:
+            (x, y, w, h) = QRCode.rect
+        self.focalLength = (w * self.KNOWN_DISTANCE) / self.KNOWN_WIDTH
+
         self.request_post = Anafi_Request_Post()
         self.scanning_decode = Anafi_Scanning()
-        self.listOfLocation = self.request_post.readLocation()
+
+        # comment/uncomment this part if want to read location from txt file
+        # self.listOfLocation = self.request_post.readLocation()
+
+        # comment/uncomment this part if want to get location from the server
+        self.listOfLocation = self.request_post.getLocation()
+
+        # print the list of location to show the initialize location in the warehouse
         print(self.listOfLocation)
+
+        # flag for the current location and status
         self.currentLocation = None
         self.currentLocationStatus = False
-        self.barcodeDataList = []
 
-        # get location from server
-        
+        # initializing the barcode data list for storing the list of barcode that will be scanned later
+        self.barcodeDataList = []
 
         super().__init__()
         print("Initialization succesfull, Drone is ready to FLY")
@@ -82,14 +107,12 @@ class AnafiConnection(threading.Thread):
 
     # Properly stop the video stream and disconnect
     def stop(self):
-
         self.drone.stop_video_streaming()
         self.drone.disconnect()
         self.h264_stats_file.close()
 
     # This function will be called by Olympe for each decoded YUV frame.
     def yuv_frame_cb(self, yuv_frame):
-
         yuv_frame.ref()
         self.frame_queue.put_nowait(yuv_frame)
 
@@ -151,13 +174,13 @@ class AnafiConnection(threading.Thread):
         # i.e (3 * height / 2, width) because it's a YUV I420 or NV12 frame
 
         # Use OpenCV to convert the yuv frame to RGB
-        self.cv2frame = cv2.cvtColor(
-            yuv_frame.as_ndarray(), cv2_cvt_color_flag)
+        self.cv2frame = cv2.cvtColor(yuv_frame.as_ndarray(), cv2_cvt_color_flag)
 
         # scan the barcode, draw box and data in the frame
-        self.barcodeData = self.scanning_decode.startScanning(self.cv2frame)
+        self.barcodeData = self.scanning_decode.startScanning(cv2frame, self.focalLength, self.KNOWN_WIDTH)
 
-        # if there is no data in the barcodeData. contain None
+        # condition to check the barcode that have been scanned is an item ID or location ID
+        # because of the library keep scanning and decode the frame, we need to set a condition if there is no QR code in the frame, just pass
         if not self.barcodeData:
             pass
         elif (self.barcodeData in self.listOfLocation):
@@ -165,9 +188,8 @@ class AnafiConnection(threading.Thread):
             self.currentLocationStatus = True
         else:
             if (self.barcodeData not in self.barcodeDataList) and (self.currentLocationStatus == True):
-                # print("data tengh scan, xde dalam list")
                 self.barcodeDataList.append(self.barcodeData)
-                self.request_post.sendData(self.barcodeData, self.currentLocation)            
+                self.request_post.sendData(self.barcodeData, self.currentLocation)
 
         # Use OpenCV to show this frame
         cv2.imshow(window_name, self.cv2frame)
@@ -199,7 +221,8 @@ class AnafiConnection(threading.Thread):
                     # Don't forget to unref the yuv frame. We don't want to
                     # starve the video buffer pool
                     yuv_frame.unref()
-            
+
+            # hold Q until video frame are closed
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 anafi_connection.stop()
        
