@@ -49,36 +49,51 @@ class AnafiConnection(threading.Thread):
         self.frame_queue = queue.Queue()
         self.flush_queue_lock = threading.Lock()
 
-        #FINDING FOCAL LENGTH OF THE CAMERA
-        # initialize the known distance from the camera to the object, which
+        # initialize the known distance from the camera to the object (referring to picture)
         self.KNOWN_DISTANCE = 25.1
 
-        # initialize the known object width, which in this case, the piece of
+        # initialize the known object width, which in this case, the barcode(referring to QR code in picture)
         self.KNOWN_WIDTH = 2.16535
 
+        # change path to your own path
         self.image = cv2.imread("/home/dragonfly/Downloads/Using Controller/images/barcode.jpg")
+
+        # decode the QR code in the picture
         self.foundBarcode = pyzbar.decode(self.image)
-        for code in self.foundBarcode:
-            (x, y, w, h) = code.rect
+
+        # loop the found barcode and get the width (in pixels) for the QR code in the picture, then calculate the focal length
+        for QRCode in self.foundBarcode:
+            (x, y, w, h) = QRCode.rect
         self.focalLength = (w * self.KNOWN_DISTANCE) / self.KNOWN_WIDTH
 
         self.request_post = Anafi_Request_Post()
         self.scanning_decode = Anafi_Scanning()
-        self.listOfLocation = self.request_post.readLocation()
+
+        # comment/uncomment this part if want to read location from txt file
+        # self.listOfLocation = self.request_post.readLocation()
+
+        # comment/uncomment this part if want to get location from the server
+        self.listOfLocation =self.request_post.getLocation()
+
+        # print the list of location to show the initialize location in the warehouse
         print(self.listOfLocation)
+
+        # flag for the current location and status
         self.currentLocation = None
         self.currentLocationStatus = False
+
+        # initializing the barcode data list for storing the list of barcode that will be scanned later
         self.barcodeDataList = []
 
         super().__init__()
         super().start()
 
+    # connect the drone and optionally register callback functions
     def start(self):
         # Connect the the drone
         self.drone.connect()
-        
 
-        # Setup your callback functions to do some live video processing
+        # Setup callback functions to do some live video processing
         self.drone.set_streaming_callbacks(
             raw_cb=self.yuv_frame_cb,
             h264_cb=self.h264_frame_cb,
@@ -89,15 +104,14 @@ class AnafiConnection(threading.Thread):
         # Start video streaming
         self.drone.start_video_streaming()
 
+    # Properly stop the video stream and disconnect
     def stop(self):
-        # Properly stop the video stream and disconnect
         self.drone.stop_video_streaming()
         self.drone.disconnect()
         self.h264_stats_file.close()
 
-    # This function will be called by Olympe for each decoded YUV frame.
+    # Called by Olympe for each decoded YUV frame.
     def yuv_frame_cb(self, yuv_frame):
-        
         yuv_frame.ref()
         self.frame_queue.put_nowait(yuv_frame)
 
@@ -161,6 +175,8 @@ class AnafiConnection(threading.Thread):
         # scan the barcode, draw box and data in the frame
         self.barcodeData = self.scanning_decode.startScanning(cv2frame, self.focalLength, self.KNOWN_WIDTH)
 
+        # condition to check the barcode that have been scanned is an item ID or location ID
+        # because of the library keep scanning and decode the frame, we need to set a condition if there is no QR code in the frame, just pass
         if not self.barcodeData:
             pass
         elif (self.barcodeData in self.listOfLocation):
@@ -170,7 +186,6 @@ class AnafiConnection(threading.Thread):
             if (self.barcodeData not in self.barcodeDataList) and (self.currentLocationStatus == True):
                 self.barcodeDataList.append(self.barcodeData)
                 self.request_post.sendData(self.barcodeData, self.currentLocation)
-
 
         # Use OpenCV to show this frame
         cv2.imshow(window_name, cv2frame)
@@ -203,7 +218,6 @@ class AnafiConnection(threading.Thread):
         cv2.destroyWindow(window_name)
 
     def fly(self):
-        # Takeoff, fly, land, ...
         print("Takeoff if necessary...")
         self.drone(
             FlyingStateChanged(state="hovering", _policy="check")
