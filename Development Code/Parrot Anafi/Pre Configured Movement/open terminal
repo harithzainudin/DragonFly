@@ -1,0 +1,5 @@
+
+Paste this code in the terminal to run the Anafi code  in olympe
+
+source ~/code/parrot-groundsdk/./products/olympe/linux/env/shell
+
