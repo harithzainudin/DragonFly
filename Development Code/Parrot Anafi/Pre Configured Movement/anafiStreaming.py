@@ -49,41 +49,16 @@ class AnafiConnection(threading.Thread):
         self.frame_queue = queue.Queue()
         self.flush_queue_lock = threading.Lock()
 
-        # initialize the known distance from the camera to the object (referring to picture)
-        self.KNOWN_DISTANCE = 25.1
-
-        # initialize the known object width, which in this case, the barcode(referring to QR code in picture)
-        self.KNOWN_WIDTH = 2.16535
-
-        # change path to your own path
-        self.image = cv2.imread("/home/dragonfly/Downloads/Using Controller/images/barcode.jpg")
-
-        # decode the QR code in the picture
-        self.foundBarcode = pyzbar.decode(self.image)
-
-        # loop the found barcode and get the width (in pixels) for the QR code in the picture, then calculate the focal length
-        for QRCode in self.foundBarcode:
-            (x, y, w, h) = QRCode.rect
-        self.focalLength = (w * self.KNOWN_DISTANCE) / self.KNOWN_WIDTH
-
         self.request_post = Anafi_Request_Post()
         self.scanning_decode = Anafi_Scanning()
-
-        # comment/uncomment this part if want to read location from txt file
-        # self.listOfLocation = self.request_post.readLocation()
-
-        # comment/uncomment this part if want to get location from the server
-        self.listOfLocation = self.request_post.getLocation()
-
-        # print the list of location to show the initialize location in the warehouse
+        self.listOfLocation = self.request_post.readLocation()
         print(self.listOfLocation)
-
-        # flag for the current location and status
         self.currentLocation = None
         self.currentLocationStatus = False
-
-        # initializing the barcode data list for storing the list of barcode that will be scanned later
         self.barcodeDataList = []
+
+        # get location from server
+        
 
         super().__init__()
         print("Initialization succesfull, Drone is ready to FLY")
@@ -107,12 +82,14 @@ class AnafiConnection(threading.Thread):
 
     # Properly stop the video stream and disconnect
     def stop(self):
+
         self.drone.stop_video_streaming()
         self.drone.disconnect()
         self.h264_stats_file.close()
 
     # This function will be called by Olympe for each decoded YUV frame.
     def yuv_frame_cb(self, yuv_frame):
+
         yuv_frame.ref()
         self.frame_queue.put_nowait(yuv_frame)
 
@@ -174,13 +151,13 @@ class AnafiConnection(threading.Thread):
         # i.e (3 * height / 2, width) because it's a YUV I420 or NV12 frame
 
         # Use OpenCV to convert the yuv frame to RGB
-        self.cv2frame = cv2.cvtColor(yuv_frame.as_ndarray(), cv2_cvt_color_flag)
+        self.cv2frame = cv2.cvtColor(
+            yuv_frame.as_ndarray(), cv2_cvt_color_flag)
 
         # scan the barcode, draw box and data in the frame
-        self.barcodeData = self.scanning_decode.startScanning(cv2frame, self.focalLength, self.KNOWN_WIDTH)
+        self.barcodeData = self.scanning_decode.startScanning(self.cv2frame)
 
-        # condition to check the barcode that have been scanned is an item ID or location ID
-        # because of the library keep scanning and decode the frame, we need to set a condition if there is no QR code in the frame, just pass
+        # if there is no data in the barcodeData. contain None
         if not self.barcodeData:
             pass
         elif (self.barcodeData in self.listOfLocation):
@@ -188,8 +165,9 @@ class AnafiConnection(threading.Thread):
             self.currentLocationStatus = True
         else:
             if (self.barcodeData not in self.barcodeDataList) and (self.currentLocationStatus == True):
+                # print("data tengh scan, xde dalam list")
                 self.barcodeDataList.append(self.barcodeData)
-                self.request_post.sendData(self.barcodeData, self.currentLocation)
+                self.request_post.sendData(self.barcodeData, self.currentLocation)            
 
         # Use OpenCV to show this frame
         cv2.imshow(window_name, self.cv2frame)
@@ -221,15 +199,20 @@ class AnafiConnection(threading.Thread):
                     # Don't forget to unref the yuv frame. We don't want to
                     # starve the video buffer pool
                     yuv_frame.unref()
-
-            # hold Q until video frame are closed
+            
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 anafi_connection.stop()
+            
+            if cv2.waitKey(1) & 0xFF == ord('l'):
+                anafi_connection.land()
+
+            if cv2.waitKey(1) & 0xFF == ord('t'):
+                anafi_connection.takeoff()
        
         cv2.destroyWindow(window_name)
 
     def autonomous(self):
-        file_name = '/home/dragonfly/DragonFlyReferences/ToyDroneWithAutopilotBarcodeReader1.0/cm.txt'
+        file_name = '/home/dragonfly/Downloads/DragonFly/Development Code/Parrot Anafi/cm.txt'
 
         f = open(file_name, "r")
         commands = f.readlines()
@@ -250,23 +233,39 @@ class AnafiConnection(threading.Thread):
     def send_command(self, command):
         newCommand = command.split()
 
-        if(newCommand[0] == 'Forward') or (newCommand[0] == 'Backward'):
-            self.move_ForwardBackward(newCommand[1])
+        if(newCommand[0] == 'Forward'):
+            self.move_Forward(newCommand[1])
         
-        if(newCommand[0] == 'Left') or (newCommand[0] == 'Right'):
-            self.move_RightLeft(newCommand[1])
+        elif(newCommand[0] == 'Backward'):
+            self.move_Backward(newCommand[1])
         
-        if(newCommand[0] == 'Up') or (newCommand[0] == 'Down'):
-            self.move_UpDown(newCommand[1])
+        elif(newCommand[0] == 'Right'):
+            self.move_Right(newCommand[1])
+
+        elif(newCommand[0] == 'Left'):
+            self.move_Left(newCommand[1])
         
-        if(newCommand[0] == 'Rotate'):
-            self.rotate(newCommand[1])
+        elif(newCommand[0] == 'Up'):
+            self.move_Up(newCommand[1])
+
+        elif(newCommand[0] == 'Down'):
+            self.move_Down(newCommand[1])
         
-        if(newCommand[0] == 'Takeoff'):
+        elif(newCommand[0] == 'Clockwise'):
+            self.rotate_Clockwise(newCommand[1])
+        
+        elif(newCommand[0] == 'Anticlockwise'):
+            self.rotate_Anticlockwise(newCommand[1])
+        
+        elif(newCommand[0] == 'Takeoff'):
             self.takeoff()
         
-        if(newCommand[0] == 'Land'):
+        elif(newCommand[0] == 'Land'):
             self.land()
+
+        else:
+            self.land()
+            self.stop()
         
         return
 
@@ -284,43 +283,83 @@ class AnafiConnection(threading.Thread):
         print("---------------------------------------------------SUCCESSFUL LAND---------------------------------------------------------------------")
 
 
-    def move_ForwardBackward(self, range):
+    def move_Forward(self, range):
         distance = float(range)
         assert self.drone(
         moveBy(distance, 0, 0, 0)
         >> FlyingStateChanged(state="hovering", _timeout=5)
         ).wait().success()
-        print("---------------------------------------------SUCCESSFUL FORWARD/BACKWARD---------------------------------------------------------------------")
+        print("---------------------------------------------SUCCESSFUL FORWARD---------------------------------------------------------------------")
 
         return
     
-    def move_RightLeft(self, range):
+    def move_Backward(self, range):
+        distance = -float(range)
+        assert self.drone(
+        moveBy(distance, 0, 0, 0)
+        >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------SUCCESSFUL BACKWARD---------------------------------------------------------------------")
+
+        return
+    
+    def move_Right(self, range):
         distance = float(range)
         assert self.drone(
         moveBy(0, distance, 0, 0)
         >> FlyingStateChanged(state="hovering", _timeout=5)
         ).wait().success()
-        print("---------------------------------------------------SUCCESSFUL RIGHT/LEFT---------------------------------------------------------------------")
+        print("---------------------------------------------------SUCCESSFUL RIGHT---------------------------------------------------------------------")
+
+        return
+
+    def move_Left(self, range):
+        distance = -float(range)
+        assert self.drone(
+        moveBy(0, distance, 0, 0)
+        >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------------SUCCESSFUL LEFT---------------------------------------------------------------------")
 
         return
     
-    def move_UpDown(self, range):
+    def move_Up(self, range):
+        distance = -float(range)
+        assert self.drone(
+        moveBy(0, 0, distance, 0)
+        >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------------SUCCESSFUL UP---------------------------------------------------------------------")
+
+        return
+
+    def move_Down(self, range):
         distance = float(range)
         assert self.drone(
         moveBy(0, 0, distance, 0)
         >> FlyingStateChanged(state="hovering", _timeout=5)
         ).wait().success()
-        print("---------------------------------------------------SUCCESSFUL UP/DOWN---------------------------------------------------------------------")
+        print("---------------------------------------------------SUCCESSFUL DOWN---------------------------------------------------------------------")
 
         return
 
-    def rotate(self, range):
+    def rotate_Clockwise(self, range):
         distance = float(range)
         assert self.drone(
         moveBy(0, 0, 0, distance)
         >> FlyingStateChanged(state="hovering", _timeout=5)
         ).wait().success()
-        print("---------------------------------------------------SUCCESSFUL ROTATE/YAW---------------------------------------------------------------------")
+        print("---------------------------------------------------SUCCESSFUL ROTATE CLOCKWISE/YAW---------------------------------------------------------------------")
+
+        return
+
+    def rotate_Anticlockwise(self, range):
+        distance = -float(range)
+        assert self.drone(
+        moveBy(0, 0, 0, distance)
+        >> FlyingStateChanged(state="hovering", _timeout=5)
+        ).wait().success()
+        print("---------------------------------------------------SUCCESSFUL ROTATE ANTICLOCKWISE/YAW---------------------------------------------------------------------")
 
         return
 
@@ -330,6 +369,6 @@ if __name__ == "__main__":
     # Start the video stream
     anafi_connection.start()
     # Perform some live video processing while the drone is flying
-    anafi_connection.fly()
+    anafi_connection.autonomous()
     # Stop the video stream
     anafi_connection.stop()
